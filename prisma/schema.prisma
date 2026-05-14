@@ -1,0 +1,26 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Assessment {
+  id          String @id @default(cuid())
+  name        String
+  slug        String @unique
+  url         String
+  description String
+  testType    String // K=Knowledge, C=Cognitive, P=Personality, B=Behavioral, S=Simulation, A=Ability, E=Emotional Intelligence, D=Development
+  category    String // e.g. "Technical", "Cognitive", "Personality", "Behavioral", "Skills", "Simulation"
+  remoteTesting Boolean @default(false)
+  adaptive    Boolean @default(false)
+  duration    String @default("")
+  jobLevels   String @default("") // comma-separated: Entry,Graduate,Mid-Level,Senior,Executive
+  languages   String @default("") // comma-separated
+  skills      String @default("") // comma-separated skills assessed
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
