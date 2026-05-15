@@ -34,10 +34,12 @@ interface ChatStore {
   messages: Message[];
   isLoading: boolean;
   context: ConversationContext;
+  _hasHydrated: boolean;
   sendMessage: (content: string) => Promise<void>;
   clearChat: () => void;
   setFeedback: (messageId: string, feedback: 'positive' | 'negative') => void;
   setContext: (context: ConversationContext) => void;
+  hydrate: () => void;
 }
 
 function generateId(): string {
@@ -102,13 +104,13 @@ function extractContextFromResponse(data: Record<string, unknown>): Conversation
 }
 
 export const useChatStore = create<ChatStore>((set, get) => {
-  // Initialize from localStorage
-  const persisted = typeof window !== 'undefined' ? loadFromStorage() : null;
-
+  // Always initialize with empty state to avoid hydration mismatch.
+  // localStorage data is loaded lazily via `hydrate()` after mount.
   return {
-    messages: persisted?.messages ?? [],
+    messages: [],
     isLoading: false,
-    context: persisted?.context ?? defaultContext,
+    context: defaultContext,
+    _hasHydrated: false,
 
     sendMessage: async (content: string) => {
       const trimmed = content.trim();
@@ -219,6 +221,19 @@ export const useChatStore = create<ChatStore>((set, get) => {
         saveToStorage(state.messages, context);
         return { context };
       });
+    },
+
+    hydrate: () => {
+      const persisted = loadFromStorage();
+      if (persisted) {
+        set({
+          messages: persisted.messages,
+          context: persisted.context,
+          _hasHydrated: true,
+        });
+      } else {
+        set({ _hasHydrated: true });
+      }
     },
   };
 });

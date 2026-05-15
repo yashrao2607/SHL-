@@ -117,8 +117,8 @@ function MessageBubble({
           )}
         </div>
 
-        {/* Timestamp */}
-        <span className="text-[10px] text-muted-foreground/50 mt-0.5 px-1">
+        {/* Timestamp - suppressHydrationWarning because Date.now() differs between server and client */}
+        <span className="text-[10px] text-muted-foreground/50 mt-0.5 px-1" suppressHydrationWarning>
           {formatRelativeTime(message.timestamp)}
         </span>
 
