@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { processChat, type ChatMessage, type ChatResponse } from '@/lib/assessment-engine';
+import { processChat, extractState, classifyIntent, type ChatMessage, type ChatResponse } from '@/lib/assessment-engine';
 
 // ---------------------------------------------------------------------------
 // POST /api/chat
@@ -10,6 +10,8 @@ interface ChatRequestBody {
 }
 
 export async function POST(request: NextRequest) {
+  const startTime = performance.now();
+
   try {
     // Parse request body
     let body: ChatRequestBody;
@@ -22,7 +24,7 @@ export async function POST(request: NextRequest) {
           recommendations: [],
           end_of_conversation: false,
         } satisfies ChatResponse,
-        { status: 400 }
+        { status: 400, headers: { 'X-Response-Time': `${(performance.now() - startTime).toFixed(1)}ms` } }
       );
     }
 
@@ -34,7 +36,7 @@ export async function POST(request: NextRequest) {
           recommendations: [],
           end_of_conversation: false,
         } satisfies ChatResponse,
-        { status: 400 }
+        { status: 400, headers: { 'X-Response-Time': `${(performance.now() - startTime).toFixed(1)}ms` } }
       );
     }
 
@@ -50,7 +52,7 @@ export async function POST(request: NextRequest) {
             recommendations: [],
             end_of_conversation: false,
           } satisfies ChatResponse,
-          { status: 400 }
+          { status: 400, headers: { 'X-Response-Time': `${(performance.now() - startTime).toFixed(1)}ms` } }
         );
       }
 
@@ -61,7 +63,7 @@ export async function POST(request: NextRequest) {
             recommendations: [],
             end_of_conversation: false,
           } satisfies ChatResponse,
-          { status: 400 }
+          { status: 400, headers: { 'X-Response-Time': `${(performance.now() - startTime).toFixed(1)}ms` } }
         );
       }
 
@@ -77,21 +79,57 @@ export async function POST(request: NextRequest) {
       validatedMessages.splice(0, validatedMessages.length - 30);
     }
 
+    // ---- Pre-processing logging ----
+    const lastUserMsg = [...validatedMessages].reverse().find((m) => m.role === 'user');
+    const preState = extractState(validatedMessages);
+    const preIntent = lastUserMsg
+      ? classifyIntent(lastUserMsg.content, preState, validatedMessages.length)
+      : 'clarify';
+
+    console.log(`[Chat API] Intent: ${preIntent} | Messages: ${validatedMessages.length} | Role: "${preState.role}" | Skills: [${preState.technical_skills.join(', ')}]`);
+
     // Process the chat through the assessment engine
     const response: ChatResponse = await processChat(validatedMessages);
 
-    return NextResponse.json(response);
-  } catch (error) {
-    console.error('Chat API error:', error);
+    // ---- Post-processing logging ----
+    const elapsed = performance.now() - startTime;
+    console.log(`[Chat API] Intent: ${preIntent} | Recommendations: ${response.recommendations.length} | Duration: ${elapsed.toFixed(0)}ms`);
 
-    // Return a safe fallback response
+    return NextResponse.json(response, {
+      headers: {
+        'X-Response-Time': `${elapsed.toFixed(1)}ms`,
+      },
+    });
+  } catch (error) {
+    const elapsed = performance.now() - startTime;
+    console.error('[Chat API] Error:', error, `| Duration: ${elapsed.toFixed(0)}ms`);
+
+    // Return a safe fallback response with helpful error message
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const isTimeout = errorMessage.includes('timeout') || errorMessage.includes('Timeout');
+    const isNetwork = errorMessage.includes('ECONNREFUSED') || errorMessage.includes('fetch');
+
+    let reply: string;
+    if (isTimeout) {
+      reply = "I'm sorry, the request took too long to process. Please try again with a shorter message or fewer conversation turns.";
+    } else if (isNetwork) {
+      reply = "I'm experiencing a connectivity issue right now. Please try again in a moment.";
+    } else {
+      reply = "I'm experiencing a technical issue right now. Please try again in a moment.";
+    }
+
     return NextResponse.json(
       {
-        reply: "I'm experiencing a technical issue right now. Please try again in a moment.",
+        reply,
         recommendations: [],
         end_of_conversation: false,
       } satisfies ChatResponse,
-      { status: 500 }
+      {
+        status: 500,
+        headers: {
+          'X-Response-Time': `${elapsed.toFixed(1)}ms`,
+        },
+      }
     );
   }
 }
