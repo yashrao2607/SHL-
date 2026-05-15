@@ -1,4 +1,4 @@
-# SHL Assessment Recommender
+# SHL Assessment Recommender 
 
 > An AI-powered conversational system that recommends SHL assessments to recruiters and hiring managers. Built with Next.js 16, TypeScript, Prisma, and LLM integration — featuring BM25-based retrieval, fuzzy skill matching, intent classification, and strict grounding enforcement to ensure zero-hallucination recommendations.
 
